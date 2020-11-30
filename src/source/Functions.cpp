@@ -870,6 +870,18 @@ unsigned VectorSplitDouble(const std::string mark,const std::string &text,std::v
 }
 
 //==============================================================================
+/// Loads float list in a vector and returns size of vector.
+//==============================================================================
+unsigned VectorSplitFloat(const std::string mark,const std::string &text,std::vector<float> &vec){
+  std::string aux=text;
+  while(!aux.empty()){
+    std::string txv=StrSplit(mark,aux);
+    if(!txv.empty())vec.push_back(float(atof(txv.c_str())));
+  }
+  return((unsigned)vec.size());
+}
+
+//==============================================================================
 /// Set strings to lowercase.
 //==============================================================================
 void VectorLower(std::vector<std::string> &vec){
@@ -1046,30 +1058,41 @@ std::string VarStr(const std::string &name,unsigned value){
   sprintf(cad,"=%u",value);
   return(name+cad);
 }
-std::string VarStr(const std::string &name,unsigned n,const int* values,std::string size){
+std::string VarStr(const std::string &name,unsigned n,const int *values,std::string size){
   std::string tex=name+"["+(size=="?"? UintStr(n): size)+"]=[";
   for(unsigned c=0;c<n;c++)tex=tex+(c? ",": "")+fun::IntStr(values[c]);
   return(tex+"]");
 }
-std::string VarStr(const std::string &name,unsigned n,const unsigned* values,std::string size){
+std::string VarStr(const std::string &name,unsigned n,const unsigned *values,std::string size){
   std::string tex=name+"["+(size=="?"? UintStr(n): size)+"]=[";
   for(unsigned c=0;c<n;c++)tex=tex+(c? ",": "")+fun::UintStr(values[c]);
   return(tex+"]");
 }
-std::string VarStr(const std::string &name,unsigned n,const word* values,std::string size){
+std::string VarStr(const std::string &name,unsigned n,const word *values,std::string size){
   std::string tex=name+"["+(size=="?"? UintStr(n): size)+"]=[";
   for(unsigned c=0;c<n;c++)tex=tex+(c? ",": "")+fun::UintStr(values[c]);
   return(tex+"]");
 }
-std::string VarStr(const std::string &name,unsigned n,const float* values,std::string size,const char* fmt){
+std::string VarStr(const std::string &name,unsigned n,const float *values,std::string size,const char *fmt){
   std::string tex=name+"["+(size=="?"? UintStr(n): size)+"]=[";
   for(unsigned c=0;c<n;c++)tex=tex+(c? ",": "")+fun::FloatStr(values[c],fmt);
   return(tex+"]");
 }
-std::string VarStr(const std::string &name,unsigned n,const double* values,std::string size,const char* fmt){
+std::string VarStr(const std::string &name,unsigned n,const double *values,std::string size,const char *fmt){
   std::string tex=name+"["+(size=="?"? UintStr(n): size)+"]=[";
   for(unsigned c=0;c<n;c++)tex=tex+(c? ",": "")+fun::DoubleStr(values[c],fmt);
   return(tex+"]");
+}
+std::string VarStr(const std::string &name,unsigned n,const tdouble3 *values,std::string size,const char *fmt){
+  std::string tex=name+"["+(size=="?"? UintStr(n): size)+"]=[";
+  for(unsigned c=0;c<n;c++)tex=tex+(c? ", ": "")+"("+fun::Double3xStr(values[c],fmt)+")";
+  return(tex+"]");
+}
+std::string VarStr(const std::string &name,const std::vector<int> &values,std::string size){
+  return(VarStr(name,unsigned(values.size()),values.data(),size));
+}
+std::string VarStr(const std::string &name,const std::vector<tdouble3> &values,std::string size,const char *fmt){
+  return(VarStr(name,unsigned(values.size()),values.data(),size,fmt));
 }
 
 //==============================================================================
@@ -1358,7 +1381,7 @@ void GetFileNameSplit(const std::string &file,std::string &dir,std::string &fnam
 //==============================================================================
 std::string AddExtension(const std::string &file,const std::string &ext){
   std::string file2=file;
-  if(file2.empty()||file2[file2.length()-1]!='.')file2+='.';
+  if(file2.empty() || file2[file2.length()-1]!='.')file2+='.';
   file2+=ext;
   return(file2);
 }

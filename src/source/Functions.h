@@ -101,14 +101,8 @@
 #include <vector>
 #include <sys/stat.h>
 #include "TypesDef.h"
+#include "RunExceptionDef.h"
 
-
-#ifndef Run_ExceptioonFun
-#define Run_ExceptioonFun(msg) RunExceptioonFun(__FILE__,__LINE__,__func__,msg)
-#endif
-#ifndef Run_ExceptioonFileFun
-#define Run_ExceptioonFileFun(msg,file) RunExceptioonFun(__FILE__,__LINE__,__func__,msg,file)
-#endif
 
 /// Implements a set of basic/general functions.
 namespace fun{
@@ -222,6 +216,7 @@ std::string StrSplitValue(const std::string mark,std::string text,unsigned value
 unsigned VectorSplitStr(const std::string mark,const std::string &text,std::vector<std::string> &vec);
 unsigned VectorSplitInt(const std::string mark,const std::string &text,std::vector<int> &vec);
 unsigned VectorSplitDouble(const std::string mark,const std::string &text,std::vector<double> &vec);
+unsigned VectorSplitFloat(const std::string mark,const std::string &text,std::vector<float> &vec);
 void     VectorLower(std::vector<std::string> &vec);
 unsigned VectorFind(const std::string &key,const std::vector<std::string> &vec,unsigned first=0);
 unsigned VectorFindMask(const std::string &keymask,const std::vector<std::string> &vec,unsigned first=0);
@@ -244,11 +239,17 @@ std::string VarStr(const std::string &name,bool value);
 std::string VarStr(const std::string &name,int value);
 std::string VarStr(const std::string &name,unsigned value);
 
-std::string VarStr(const std::string &name,unsigned n,const int* values,std::string size="?");
-std::string VarStr(const std::string &name,unsigned n,const unsigned* values,std::string size="?");
-std::string VarStr(const std::string &name,unsigned n,const word* values,std::string size="?");
-std::string VarStr(const std::string &name,unsigned n,const float* values,std::string size="?",const char* fmt="%f");
-std::string VarStr(const std::string &name,unsigned n,const double* values,std::string size="?",const char* fmt="%f");
+std::string VarStr(const std::string &name,unsigned n,const int *values,std::string size="?");
+std::string VarStr(const std::string &name,unsigned n,const unsigned *values,std::string size="?");
+std::string VarStr(const std::string &name,unsigned n,const word *values,std::string size="?");
+std::string VarStr(const std::string &name,unsigned n,const float *values,std::string size="?",const char *fmt="%f");
+std::string VarStr(const std::string &name,unsigned n,const double *values,std::string size="?",const char *fmt="%f");
+std::string VarStr(const std::string &name,unsigned n,const tdouble3 *values,std::string size="?",const char *fmt="%g");
+
+std::string VarStr(const std::string &name,const std::vector<int> &values,std::string size="?");
+std::string VarStr(const std::string &name,const std::vector<tdouble3> &values,std::string size="?",const char *fmt="%g");
+
+
 
 void PrintVar(const std::string &name,const char *value,const std::string &post="");
 void PrintVar(const std::string &name,const std::string &value,const std::string &post="");

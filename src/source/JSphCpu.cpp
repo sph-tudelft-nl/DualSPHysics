@@ -1858,8 +1858,8 @@ void JSphCpu::InitFloating(){
     ftdata.LoadPart(PartBegin);
     for(unsigned cf=0;cf<FtCount;cf++){
       FtObjs[cf].center=ftdata.GetPartCenter(cf);
-      FtObjs[cf].fvel=ftdata.GetPartFvel(cf);
-      FtObjs[cf].fomega=ftdata.GetPartFomega(cf);
+      FtObjs[cf].fvel  =ftdata.GetPartVelLin(cf);
+      FtObjs[cf].fomega=ftdata.GetPartVelAng(cf);
       FtObjs[cf].radius=ftdata.GetHeadRadius(cf);
     }
     DemDtForce=ftdata.GetPartDemDtForce();

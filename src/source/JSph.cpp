@@ -21,7 +21,7 @@
 #include "JSph.h"
 #include "JAppInfo.h"
 #include "Functions.h"
-#include "FunctionsGeo3d.h"
+#include "FunGeo3d.h"
 #include "FunSphKernelsCfg.h"
 #include "FunSphKernel.h"
 #include "JPartDataHead.h"
@@ -54,6 +54,7 @@
 #include "JDsInitialize.h"
 #include "JSphInOut.h"
 #include "JSphBoundCorr.h"
+#include "JFtMotionSave.h"  //<vs_ftmottionsv>
 #include "JDsPips.h"
 #include "JLinearValue.h"
 #include "JPartNormalData.h"
@@ -105,6 +106,7 @@ JSph::JSph(bool cpu,bool mgpu,bool withmpi):Cpu(cpu),Mgpu(mgpu),WithMpi(withmpi)
   PartsLoaded=NULL;
   InOut=NULL;
   BoundCorr=NULL;
+  FtMotSave=NULL; //<vs_ftmottionsv>
   DsPips=NULL;
   NuxLib=NULL;
   InitVars();
@@ -141,6 +143,7 @@ JSph::~JSph(){
   delete PartsLoaded;   PartsLoaded=NULL;
   delete InOut;         InOut=NULL;
   delete BoundCorr;     BoundCorr=NULL;
+  delete FtMotSave;     FtMotSave=NULL;   //<vs_ftmottionsv>
   delete DsPips;        DsPips=NULL;
   delete NuxLib;        NuxLib=NULL;
 }
@@ -525,7 +528,7 @@ void JSph::LoadConfig(const JSphCfgRun *cfg){
   LoadCaseConfig(cfg);
 
   //-PIPS configuration.
-  if(cfg->PipsMode)DsPips=new JDsPips(Cpu,cfg->PipsSteps,(cfg->PipsMode==2),(TStep==STEP_Symplectic? 2: 1),Log);
+  if(cfg->PipsMode)DsPips=new JDsPips(Cpu,cfg->PipsSteps,(cfg->PipsMode==2),(TStep==STEP_Symplectic? 2: 1));
 }
 
 //==============================================================================
@@ -572,6 +575,7 @@ void JSph::LoadConfigParameters(const JXml *xml){
   JCaseEParms eparms;
   eparms.LoadXml(xml,"case.execution.parameters");
   if(eparms.Exists("FtSaveAce"))SaveFtAce=(eparms.GetValueInt("FtSaveAce",true,0)!=0); //-For Debug.
+  if(eparms.GetValueDouble("FtSaveMotion",true,-1.)>=0)FtMotSave=new JFtMotionSave(eparms.GetValueDouble("FtSaveMotion")); //<vs_ftmottionsv>
   if(eparms.Exists("PosDouble")){
     Log->PrintWarning("The parameter \'PosDouble\' is deprecated.");
     SvPosDouble=(eparms.GetValueInt("PosDouble")==2);
@@ -663,7 +667,7 @@ void JSph::LoadConfigParameters(const JXml *xml){
       if(shiftcoef==0)shiftmode=SHIFT_None;
       else shifttfs=eparms.GetValueFloat("ShiftTFS",true,0);
     }
-    Shifting=new JSphShifting(Simulate2D,Dp,KernelH,Log);
+    Shifting=new JSphShifting(Simulate2D,Dp,KernelH);
     Shifting->ConfigBasic(shiftmode,shiftcoef,shifttfs);
   }
 
@@ -812,7 +816,7 @@ void JSph::LoadConfigCommands(const JSphCfgRun *cfg){
       case 3:  shiftmode=SHIFT_Full;     break;
       default: Run_Exceptioon("Shifting mode is not valid.");
     }
-    if(!Shifting)Shifting=new JSphShifting(Simulate2D,Dp,KernelH,Log);
+    if(!Shifting)Shifting=new JSphShifting(Simulate2D,Dp,KernelH);
     Shifting->ConfigBasic(shiftmode);
   }
 
@@ -943,18 +947,18 @@ void JSph::LoadCaseConfig(const JSphCfgRun *cfg){
   MkInfo->Config(&parts);
 
   //-Configuration of GaugeSystem.
-  GaugeSystem=new JGaugeSystem(Cpu,Log);
+  GaugeSystem=new JGaugeSystem(Cpu);
 
   //-Configuration of AccInput.
   if(xml.GetNodeSimple("case.execution.special.accinputs",true)){
-    AccInput=new JDsAccInput(Log,DirCase,&xml,"case.execution.special.accinputs");
+    AccInput=new JDsAccInput(DirCase,&xml,"case.execution.special.accinputs");
   }
 
   //-Configuration of ChronoObjects.
   if(UseChrono){
     if(xml.GetNodeSimple("case.execution.special.chrono",true)){
       if(!JChronoObjects::Available())Run_Exceptioon("DSPHChronoLib to use Chrono is not included in the current compilation.");
-      ChronoObjects=new JChronoObjects(Log,DirCase,CaseName,&xml,"case.execution.special.chrono",Dp,parts.GetMkBoundFirst());
+      ChronoObjects=new JChronoObjects(DirCase,CaseName,&xml,"case.execution.special.chrono",Dp,parts.GetMkBoundFirst());
     }
     else Run_ExceptioonFile("Chrono configuration in XML file is missing.",FileXml);
   }
@@ -1007,7 +1011,7 @@ void JSph::LoadCaseConfig(const JSphCfgRun *cfg){
   //-Configuration of Shifting with zones.
   if(Shifting && xml.GetNodeSimple("case.execution.special.shifting",true))Run_ExceptioonFile("Shifting is defined several times (in <special><shifting> and <execution><parameters>).",FileXml);
   if(xml.GetNodeSimple("case.execution.special.shifting",true)){
-    Shifting=new JSphShifting(Simulate2D,Dp,KernelH,Log);
+    Shifting=new JSphShifting(Simulate2D,Dp,KernelH);
     Shifting->LoadXml(&xml,"case.execution.special.shifting");
   }
   if(Shifting && !Shifting->GetShiftMode()){ delete Shifting; Shifting=NULL; }
@@ -1015,7 +1019,7 @@ void JSph::LoadCaseConfig(const JSphCfgRun *cfg){
 
   //-Configuration of damping zones.
   if(xml.GetNodeSimple("case.execution.special.damping",true)){
-    Damping=new JDsDamping(Dp,Log);
+    Damping=new JDsDamping(Dp);
     Damping->LoadXml(&xml,"case.execution.special.damping");
   }
 
@@ -1059,6 +1063,7 @@ void JSph::LoadCaseConfig(const JSphCfgRun *cfg){
         fobj->angles=TFloat3(0);
         fobj->fvel=ToTFloat3(fblock.GetLinearVelini());
         fobj->fomega=ToTFloat3(fblock.GetAngularVelini());
+        fobj->facelin=fobj->faceang=TFloat3(0);
         fobj->inertiaini=ToTMatrix3f(fblock.GetInertia());
         //-Chrono configuration.
         fobj->usechrono=(ChronoObjects && ChronoObjects->ConfigBodyFloating(fblock.GetMkType()
@@ -1113,7 +1118,7 @@ void JSph::LoadCaseConfig(const JSphCfgRun *cfg){
 
   //-Configuration of Inlet/Outlet.
   if(xml.GetNodeSimple("case.execution.special.inout",true)){
-    InOut=new JSphInOut(Cpu,CSP,FileXml,&xml,"case.execution.special.inout",DirCase,Log);
+    InOut=new JSphInOut(Cpu,CSP,FileXml,&xml,"case.execution.special.inout",DirCase);
     NpDynamic=true;
     ReuseIds=InOut->GetReuseIds();
     if(ReuseIds)Run_Exceptioon("Inlet/Outlet with ReuseIds is not a valid option for now...");
@@ -1122,14 +1127,14 @@ void JSph::LoadCaseConfig(const JSphCfgRun *cfg){
   //-Configuration of boundary extrapolated correction.
   if(xml.GetNodeSimple("case.execution.special.boundextrap",false))Run_Exceptioon("The XML section 'boundextrap' is obsolete.");
   if(xml.GetNodeSimple("case.execution.special.boundcorr",true)){
-    BoundCorr=new JSphBoundCorr(Cpu,Dp,Log,&xml,"case.execution.special.boundcorr",MkInfo);
+    BoundCorr=new JSphBoundCorr(Cpu,Dp,&xml,"case.execution.special.boundcorr",MkInfo);
   }
  
   //-Configuration of Moorings object.
   if(xml.GetNodeSimple("case.execution.special.moorings",true)){
     if(WithFloating){
       if(!AVAILABLE_MOORDYN)Run_Exceptioon("Code for moorings and MoorDyn+ coupling is not included in the current compilation.");
-      Moorings=new JDsMooredFloatings(Log,DirCase,CaseName,Gravity);
+      Moorings=new JDsMooredFloatings(DirCase,CaseName,Gravity);
       Moorings->LoadXml(&xml,"case.execution.special.moorings");
     }
     else Log->PrintWarning("The use of Moorings was disabled because there are no floating objects...");
@@ -1138,7 +1143,7 @@ void JSph::LoadCaseConfig(const JSphCfgRun *cfg){
   //-Configuration of ForcePoints object.
   if(Moorings || xml.GetNodeSimple("case.execution.special.forcepoints",true)){
     if(WithFloating){
-      ForcePoints=new JDsFtForcePoints(Log,Cpu,Dp,FtCount);
+      ForcePoints=new JDsFtForcePoints(Cpu,Dp,FtCount);
       //FtForces->LoadXml(&xml,"case.execution.special.forcepoints");
     }
     else Log->PrintWarning("The use of impossed force to floatings was disabled because there are no floating objects...");
@@ -1450,6 +1455,7 @@ void JSph::VisuConfig(){
   if(SvPosDouble)ConfigInfo=ConfigInfo+sep+"SvPosDouble";
   //-Other configurations. 
   Log->Print(fun::VarStr("SaveFtAce",SaveFtAce));
+  if(FtMotSave)Log->Printf("SaveFtMotion=%s  (tout:%g)",(FtMotSave? "True": "False"),FtMotSave->GetTimeOut()); //<vs_ftmottionsv>
   Log->Print(fun::VarStr("SvTimers",SvTimers));
   if(DsPips)Log->Print(fun::VarStr("PIPS-steps",DsPips->StepsNum));
   //-Boundary. 
@@ -2121,7 +2127,7 @@ void JSph::InitRun(unsigned np,const unsigned *idp,const tdouble3 *pos){
 
   //-Configuration of SaveDt.
   if(xml.GetNodeSimple("case.execution.special.savedt",true)){
-    SaveDt=new JDsSaveDt(Log);
+    SaveDt=new JDsSaveDt();
     SaveDt->Config(&xml,"case.execution.special.savedt",TimeMax,TimePart);
     SaveDt->VisuConfig("SaveDt configuration:"," ");
   }
@@ -2138,7 +2144,7 @@ void JSph::InitRun(unsigned np,const unsigned *idp,const tdouble3 *pos){
   if(GaugeSystem->GetCount())GaugeSystem->VisuConfig("GaugeSystem configuration:"," ");
 
   //-Shows configuration of JDsOutputTime.
-  if(OutputTime->UseSpecialConfig())OutputTime->VisuConfig(Log,"TimeOut configuration:"," ");
+  if(OutputTime->UseSpecialConfig())OutputTime->VisuConfig("TimeOut configuration:"," ");
 
   Part=PartIni; Nstep=0; PartNstep=0; PartOut=0;
   TimeStep=TimeStepIni; TimeStepM1=TimeStep;
@@ -2265,7 +2271,7 @@ void JSph::ConfigSaveData(unsigned piece,unsigned pieces,std::string div){
   //-Configura objeto para grabacion de datos de floatings.
   if(SvData&SDAT_Binx && FtCount){
     DataFloatBi4=new JPartFloatBi4Save();
-    DataFloatBi4->Config(AppName,DirDataOut,MkInfo->GetMkBoundFirst(),FtCount);
+    DataFloatBi4->Config(AppName,DirDataOut,MkInfo->GetMkBoundFirst(),FtCount,false);
     for(unsigned cf=0;cf<FtCount;cf++){
       const StFloatingData &ft=FtObjs[cf];
       DataFloatBi4->AddHeadData(cf,ft.mkbound,ft.begin,ft.count,ft.mass,ft.massp,ft.radius);
@@ -2277,6 +2283,20 @@ void JSph::ConfigSaveData(unsigned piece,unsigned pieces,std::string div){
   //-Crea objeto para almacenar las particulas excluidas hasta su grabacion.
   PartsOut=new JDsPartsOut();
 }
+
+//<vs_ftmottionsv_ini>  
+//==============================================================================
+/// Configures object to store floating motion data with high frequency.
+//==============================================================================
+void JSph::ConfigFtMotionSave(unsigned np,const tdouble3 *pos,const unsigned *idp){
+  if(FtCount){
+    FtMotSave->Config(AppName,DirDataOut,MkInfo->GetMkBoundFirst(),FtCount,FtObjs,np,pos,idp);
+  }
+  else{ 
+    delete FtMotSave; FtMotSave=NULL; 
+  }
+}
+//<vs_ftmottionsv_end>
 
 //==============================================================================
 /// Stores new excluded particles until recordering next PART.
@@ -2514,8 +2534,11 @@ void JSph::SavePartData(unsigned npok,unsigned nout,const JDataArrays& arrays
 
   //-Stores data of floating bodies.
   if(DataFloatBi4){
-    for(unsigned cf=0;cf<FtCount;cf++)DataFloatBi4->AddPartData(cf,FtObjs[cf].center,FtObjs[cf].fvel,FtObjs[cf].fomega);
-    DataFloatBi4->SavePartFloat(Part,TimeStep,(UseDEM? DemDtForce: 0));
+    for(unsigned cf=0;cf<FtCount;cf++){
+      const StFloatingData *v=FtObjs+cf;
+      DataFloatBi4->AddPartData(cf,v->center,v->fvel,v->fomega,v->facelin,v->faceang);
+    }
+    DataFloatBi4->SavePartFloat(Part,Nstep,TimeStep,(UseDEM? DemDtForce: 0));
   }
 
   //-Empties stock of excluded particles.
